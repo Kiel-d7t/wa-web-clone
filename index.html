@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Clone PWA</title>
+  
+  <!-- Info Meta PWA -->
+  <meta name="theme-color" content="#00a884">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://flaticon.com">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { display: flex; height: 100vh; background-color: #dadbd3; }
+    .container { display: flex; width: 100%; height: 100%; background-color: #ededed; overflow: hidden; }
+    
+    /* Sidebar Kiri */
+    .sidebar { width: 35%; border-right: 1px solid #ddd; background: #fff; display: flex; flex-direction: column; }
+    .header-sidebar { height: 60px; background: #f0f2f5; padding: 10px; display: flex; align-items: center; justify-content: space-between; font-weight: bold; }
+    .user-setup { padding: 15px; background: #f6f6f6; border-bottom: 1px solid #ddd; display: flex; gap: 10px; }
+    .user-setup input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+    .user-setup button { padding: 8px 12px; background: #00a884; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    .contact-list { flex: 1; overflow-y: auto; padding: 10px; background: #fff; }
+    .contact-item { padding: 12px; border-bottom: 1px solid #f2f2f2; font-weight: 500; color: #494949; background: #f9f9f9; border-radius: 5px; margin-bottom: 5px; }
+
+    /* Area Chat Kanan */
+    .chat-area { width: 65%; display: flex; flex-direction: column; background: #efeae2; }
+    .chat-header { height: 60px; background: #f0f2f5; padding: 10px 20px; display: flex; align-items: center; font-weight: bold; border-bottom: 1px solid #ddd; }
+    
+    /* Kotak Pesan */
+    .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .message { max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14px; position: relative; word-wrap: break-word; }
+    .message .sender { font-size: 11px; font-weight: bold; color: #128c7e; display: block; margin-bottom: 2px; }
+    .message .time { font-size: 10px; color: #747474; text-align: right; margin-top: 4px; display: block; }
+    .msg-inbound { background: #ffffff; align-self: flex-start; border-top-left-radius: 0; }
+    .msg-outbound { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; }
+
+    /* Input Bawah */
+    .chat-input-area { height: 60px; background: #f0f2f5; padding: 10px; display: flex; align-items: center; gap: 10px; }
+    .chat-input-area input { flex: 1; padding: 10px; border: none; border-radius: 8px; outline: none; font-size: 14px; }
+    .chat-input-area button { padding: 10px 20px; background: #00a884; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+    /* Responsif Layar HP */
+    @media (max-width: 768px) {
+      .sidebar { width: 40%; }
+      .chat-area { width: 60%; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Sidebar Kiri -->
+    <div class="sidebar">
+      <div class="header-sidebar">WA Clone PWA</div>
+      <div class="user-setup">
+        <input type="text" id="username-input" placeholder="Set Nomor HP Kamu...">
+        <button id="btn-save-name">Simpan</button>
+      </div>
+      <div class="contact-list">
+        <!-- Struktur kendali kode unik akan dimuat di sini oleh JavaScript -->
+      </div>
+    </div>
+
+    <!-- Area Chat Kanan -->
+    <div class="chat-area">
+      <div class="chat-header" id="chat-room-title">Pilih atau Buat Ruang Obrolan</div>
+      <div class="chat-messages" id="chat-box"></div>
+      <div class="chat-input-area">
+        <input type="text" id="message-input" placeholder="Ketik pesan..." disabled>
+        <button id="btn-send" disabled>Kirim</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Memuat Skrip Firebase secara Modular -->
+  <script type="module">
+    import { initializeApp } from "https://gstatic.com";
+    import { getDatabase, ref, push, onChildAdded, off } from "https://gstatic.com";
+
+    // Konfigurasi asli Firebase milik Anda
+    const firebaseConfig = {
+      apiKey: "AIzaSyCs53j_YjnAJc0UAUJctTADbSKo-QJi1wY",
+      authDomain: "wa-clone-pages.firebaseapp.com",
+      databaseURL: "https://wa-clone-pages-default-rtdb.asia-southeast1.firebasedatabase.app", 
+      projectId: "wa-clone-pages",
+      storageBucket: "wa-clone-pages.firebasestorage.app",
+      messagingSenderId: "1017542342072",
+      appId: "1:1017542342072:web:6aa30a77504c6e03cd4b4d",
+      measurementId: "G-9BBJ3V3C3C"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let nomorSaya = localStorage.getItem('nomor_saya') || "";
+    let kodeUnikAktif = "";
+    let chatRef = null;
+
+    // DOM Elements
+    const usernameInput = document.getElementById('username-input');
+    const btnSaveName = document.getElementById('btn-save-name');
+    const messageInput = document.getElementById('message-input');
+    const btnSend = document.getElementById('btn-send');
+    const chatBox = document.getElementById('chat-box');
+    const contactList = document.querySelector('.contact-list');
+    const chatRoomTitle = document.getElementById('chat-room-title');
+
+    // Menata ulang Sidebar Kiri untuk fitur Kode Unik
+    contactList.innerHTML = `
+      <div style="padding: 10px; display: flex; gap: 12px; flex-direction: column;">
+        
+        <!-- OPSI 1: BUAT KODE BARU -->
+        <div style="background: #f6f6f6; padding: 10px; border-radius: 8px; border: 1px dashed #00a884;">
+          <p style="font-size:12px; margin-bottom:5px; color:#555;">Belum punya kode? Buat ruang baru:</p>
+          <button id="btn-generate-code" style="width:100%; padding:8px; background:#00a884; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">✨ Buat Kode Unik</button>
+          <div id="display-generated-code" style="font-size:14px; font-weight:bold; color:#128c7e; margin-top:8px; text-align:center;"></div>
+        </div>
+
+        <!-- OPSI 2: MASUKKAN KODE YANG SUDAH ADA -->
+        <div style="background: #f6f6f6; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+          <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:5px;">Masukkan Kode Unik Teman:</label>
+          <input type="text" id="input-kode-unik" placeholder="Contoh: ROOM-XXXX" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:5px; margin-bottom:8px; text-transform: uppercase;">
+          <button id="btn-join-code" style="width:100%; padding:8px; background:#128c7e; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">🔌 Hubungkan Obrolan</button>
+        </div>
+
+        <div id="status-chat-aktif" style="font-size:13px; margin-top:5px; color:#333; font-weight:500; text-align:center;"></div>
+      </div>
+    `;
+
+    if (nomorSaya) {
+      usernameInput.value = nomorSaya;
+    }
+
+    // 1. Simpan Identitas / Nomor HP Anda Sendiri
+    btnSaveName.addEventListener('click', () => {
+      const nomor = usernameInput.value.trim();
+      if(nomor) {
+        nomorSaya = nomor;
+        localStorage.setItem('nomor_saya', nomor);
+        alert('Nomor HP kamu berhasil disimpan di perangkat ini!');
+      }
+    });
+
+    // 2. Fungsi Membuat Kode Unik Acak (4 Digit Huruf & Angka)
+    document.getElementById('btn-generate-code').addEventListener('click', () => {
+      if (!nomorSaya) { alert('Isi dan klik SIMPAN nomor HP kamu terlebih dahulu di bagian atas!'); return; }
+      
+      const karakter = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let hasilKode = 'ROOM-';
+      for (let i = 0; i < 4; i++) {
+        hasilKode += karakter.charAt(Math.floor(Math.random() * karakter.length));
+      }
+      
+      document.getElementById('display-generated-code').innerText = `KODE KAMU: ${hasilKode}`;
+      document.getElementById('input-kode-unik').value = hasilKode;
+      alert(`Kode berhasil dibuat! Bagikan kode "${hasilKode}" ini ke teman yang ingin kamu chat.`);
+    });
+
+    // 3. Fungsi Menghubungkan Ruang Chat Berdasarkan Kode Unik
+    document.getElementById('btn-join-code').addEventListener('click', () => {
+      const kodeInput = document.getElementById('input-kode-unik').value.trim().toUpperCase();
+      
+      if (!nomorSaya) { alert('Isi dan simpan nomor HP kamu dulu di atas!'); return; }
+      if (!kodeInput) { alert('Masukkan kode unik terlebih dahulu!'); return; }
+
+      kodeUnikAktif = kodeInput;
+      document.getElementById('status-chat-aktif').innerHTML = `🟢 Terhubung di Ruang: <b style="color:#00a884;">${kodeUnikAktif}</b>`;
+      chatRoomTitle.innerText = `Ruang Obrolan: ${kodeUnikAktif}`;
+      
+      // Aktifkan kolom teks chat
+      messageInput.disabled = false;
+      btnSend.disabled = false;
+      
+      // Reset layar chat lama
+      chatBox.innerHTML = "";
+      
+      // Putuskan sambungan dari room lama jika ada
+      if(chatRef) off(chatRef);
+
+      // Hubungkan database ke folder spesifik kode unik tersebut
+      chatRef = ref(db, `private_rooms/${kodeUnikAktif}`);
+
+      // Dengarkan pesan baru secara real-time dari room kode unik tersebut
+      onChildAdded(chatRef, (snapshot) => {
+        const data = snapshot.val();
+        const isMyMessage = data.sender === nomorSaya;
+        
+        const msgHtml = `
+          <div class="message ${isMyMessage ? 'msg-outbound' : 'msg-inbound'}">
+            <span class="sender">${isMyMessage ? 'Anda' : 'HP: ' + data.sender}</span>
+            ${data.message}
+            <span class="time">${data.timestamp}</span>
+          </div>
+        `;
+        chatBox.innerHTML += msgHtml;
+        chatBox.scrollTop = chatBox.scrollHeight;
+      });
+    });
+
+    // 4. Fungsi Mengirim Pesan
+function kirimPesan() {const text = messageInput.value.trim();if (text && nomorSaya && chatRef) {push(chatRef, {sender: nomorSaya,message: text,timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })});messageInput.value = '';}}
