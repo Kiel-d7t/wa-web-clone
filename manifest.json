@@ -1,0 +1,17 @@
+{
+  "short_name": "WA Clone",
+  "name": "WhatsApp Web Clone PWA",
+  "icons": [
+    {
+      "src": "./image_b2421865.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#dadbd3",
+  "theme_color": "#00a884",
+  "display": "standalone",
+  "orientation": "portrait"
+}
